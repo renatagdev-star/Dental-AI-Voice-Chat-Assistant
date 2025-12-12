@@ -1,0 +1,119 @@
+"use client";
+
+import { useState } from "react";
+
+type Message = {
+  from: "user" | "bot";
+  text: string;
+};
+
+export default function ChatDemo() {
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      from: "bot",
+      text: "Hi, I’m the SmileCare assistant. How can I help you today?",
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [chatId, setChatId] = useState<string | null>(null);
+
+  const sendMessage = async () => {
+    const trimmed = input.trim();
+    if (!trimmed || loading) return;
+
+    // prikaži user poruku odmah
+    setMessages((prev) => [...prev, { from: "user", text: trimmed }]);
+    setInput("");
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: trimmed, chatId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Request failed");
+      }
+
+      if (data.chatId) {
+        setChatId(data.chatId);
+      }
+
+      if (data.reply) {
+        setMessages((prev) => [
+          ...prev,
+          { from: "bot", text: data.reply as string },
+        ]);
+      }
+    } catch (err) {
+      console.error(err);
+      setMessages((prev) => [
+        ...prev,
+        {
+          from: "bot",
+          text: "Sorry, something went wrong talking to the assistant.",
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  return (
+    <div className="mt-8 flex flex-col gap-3 rounded-2xl border border-rose-100 bg-white/70 p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-400">
+        Live chat demo
+      </p>
+
+      <div className="flex max-h-72 flex-col gap-2 overflow-y-auto rounded-xl bg-rose-50/60 p-3 text-sm">
+        {messages.map((m, i) => (
+          <div
+            key={i}
+            className={`max-w-[85%] rounded-2xl px-3 py-2 ${
+              m.from === "user"
+                ? "ml-auto bg-rose-500 text-white"
+                : "mr-auto bg-white text-slate-800 shadow-sm"
+            }`}
+          >
+            {m.text}
+          </div>
+        ))}
+
+        {loading && (
+          <div className="mr-auto max-w-[70%] rounded-2xl bg-white px-3 py-2 text-xs text-slate-500 shadow-sm">
+            Assistant is typing…
+          </div>
+        )}
+      </div>
+
+      <div className="mt-2 flex gap-2">
+        <input
+          className="flex-1 rounded-full border border-rose-200 bg-white px-3 py-2 text-sm outline-none ring-rose-300 placeholder:text-slate-400 focus:ring-2"
+          placeholder="Ask about check-ups, tooth pain, cancellations…"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+        <button
+          onClick={sendMessage}
+          disabled={loading || !input.trim()}
+          className="rounded-full bg-rose-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Send
+        </button>
+      </div>
+    </div>
+  );
+}
